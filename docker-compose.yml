@@ -14,3 +14,31 @@ services:
       - "./docker/init.sql:/docker-entrypoint-initdb.d/init.sql"
     ports:
       - 13306:3306
+  load-balancer:
+    container_name: load-balancer
+    image: traefik:2.5
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+    ports:
+      - 8080:80
+      - 8081:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+  service:
+    image: amazoncorretto:11-alpine-jdk
+    scale: 2
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.front.entrypoints: web
+      traefik.http.routers.front.rule: PathPrefix(`/`)
+      traefik.http.services.front.loadbalancer.server.port: "8080"
+    expose:
+      - 8080
+    volumes:
+      - ./service:/usr/app:delegated
+    command: sh -c "cd /usr/app/ && java -jar target/service-1.0-SNAPSHOT.jar --server -c config-prod.yml"
