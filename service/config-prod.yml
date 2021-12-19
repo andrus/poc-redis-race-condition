@@ -1,0 +1,5 @@
+jdbc:
+  database:
+    jdbcUrl: jdbc:mysql://database:3306/database
+    username: user
+    password: password
