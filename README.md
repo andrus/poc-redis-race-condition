@@ -10,7 +10,7 @@ _This repository is devoted to one particular case study needed to inspect condi
 - define changed preassumtions and write them down
 - init git repo
 - prepare chassis
-  - repository laout
+  - repository layout
   - docker compose script
   - java project for service
   - java project for test runner
@@ -38,9 +38,12 @@ And before start coding there are two additions to base problem formulation:
 - there will be no extra updater service, because it's not really important to update database all the time. It's needed only in-time with test running so, I thought it will be a good idea to merge updater service from base description and test runner in single java-based jUnit-encapsulating entity.
 - nginx is a good option for well-defined "static"-like configuration, but here we have a PoC, so I think it will be good to make it agile in a way. So I thought of traefik, it's also lightweight, reliable and blah-blah-blah, but mostly it is important that it can config itself from labels in docker compose, so we can easily scale application while working with PoC.
 
+## Implementation details
+
+Due to NetBeans 12 problematic compatibility with jUnit 5 we are stick with version 4 for now, to make more compatible solution.
+
 <!--
 ## How to use
-## Implementation details
 ## Next steps possible
 ## Tools used
 -->
