@@ -42,6 +42,12 @@ And before start coding there are two additions to base problem formulation:
 
 Due to NetBeans 12 problematic compatibility with jUnit 5 we are stick with version 4 for now, to make more compatible solution.
 
+MySQL, Redis and Traefik have single official image available on DockerHub, so there are no questions to be asked. But there is one in case of java base image - I choose Amazon Coretto image, because it outperformed all competitors in our unternal study couple weeks ago.
+
+## Leftover
+
+Spent about an hour on Bootique module mechanics - maybe we just don't click with it. Will look at it again soon.
+
 <!--
 ## How to use
 ## Next steps possible

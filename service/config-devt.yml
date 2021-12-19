@@ -3,3 +3,7 @@ jdbc:
     jdbcUrl: jdbc:mysql://localhost:13306/database
     username: user
     password: password
+
+jetty:
+  connectors:
+    - port: 9090

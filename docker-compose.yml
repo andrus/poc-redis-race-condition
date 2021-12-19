@@ -14,6 +14,13 @@ services:
       - "./docker/init.sql:/docker-entrypoint-initdb.d/init.sql"
     ports:
       - 13306:3306
+  cache:
+    container_name: cache
+    image: redis:6
+    expose:
+      - 6379
+    ports:
+      - 16379:6379
   load-balancer:
     container_name: load-balancer
     image: traefik:2.5

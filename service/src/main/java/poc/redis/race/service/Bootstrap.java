@@ -8,6 +8,8 @@ import io.bootique.jersey.JerseyModule;
 public class Bootstrap extends BaseModule {
 
     public static void main(String[] args) {
+//		JedisCache.init("localhost", 16379, 1500);
+		JedisCache.init("cache", 6379, 1500);
         Bootique.app(args)
                 .autoLoadModules()
                 .module(Bootstrap.class)

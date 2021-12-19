@@ -1,6 +1,5 @@
 package poc.redis.race.service;
 
-
 import io.bootique.jdbc.DataSourceFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,10 +21,10 @@ public class ScoreApi {
 	private static final short DB_RETRIEVE_RESULT_ERROR = -101;
 	private static final short DB_CONNECTION_ERROR = -102;
 	private static final short DUBLICATE_IN_DB_ERROR = -103;
-	
+
 	@Inject
 	private DataSourceFactory dataSourceFactory;
-	
+
 	@GET
 	@Path("{id}")
 	@Produces(MediaType.APPLICATION_JSON)
@@ -33,14 +32,36 @@ public class ScoreApi {
 		return "{\"score\":" + getScoreByID(id) + "}";
 	}
 
-	private short getScoreByID (String id) {
-		
-		return getScoreFromDB(id);
+	private short getScoreByID(String id) {
+		short score = getScoreFromCache(id);
+		if (score == ITEM_NOT_FOUND) {
+			System.out.println("Not in cache");
+			score = getScoreFromDB(id);
+			if (score != ITEM_NOT_FOUND) {
+				System.out.println("Put to cache");
+				putScoreToCache(id, score);
+			}
+		}
+		System.out.println("Got in cache");
+		return score;
+	}
+
+	private static final String GET_SCORES_STATEMENT = "SELECT score FROM scores WHERE id = ?";
+
+	private boolean putScoreToCache(String id, Short score) {
+		return JedisCache.getInstance().setScore(id, score);
 	}
 	
-	private static final String GET_SCORES_STATEMENT = "SELECT score FROM scores WHERE id = ?";
-	
-	private Short getScoreFromDB (String id) {
+	private short getScoreFromCache(String id) {
+		Short score = JedisCache.getInstance().getScore(id);
+		if (score == null) {
+			return ITEM_NOT_FOUND;
+		}
+		return score;
+
+	}
+
+	private short getScoreFromDB(String id) {
 		try (Connection connection = dataSourceFactory.forName("database").getConnection()) {
 			PreparedStatement statement = connection.prepareStatement(GET_SCORES_STATEMENT);
 			statement.setString(1, id);
@@ -49,7 +70,7 @@ public class ScoreApi {
 				if (result != null) {
 					short gameScore = ITEM_NOT_FOUND;
 					while (result.next()) {
-						if (gameScore != ITEM_NOT_FOUND){
+						if (gameScore != ITEM_NOT_FOUND) {
 							return DUBLICATE_IN_DB_ERROR;
 						} else {
 							gameScore = (short) result.getInt(1);
@@ -68,5 +89,5 @@ public class ScoreApi {
 			return DB_CONNECTION_ERROR;
 		}
 	}
-	
+
 }
