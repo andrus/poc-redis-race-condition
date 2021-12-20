@@ -7,3 +7,8 @@ jdbc:
 jetty:
   connectors:
     - port: 9090
+
+metrics:
+  reporters:
+    - type: slf4j
+      period: 5s

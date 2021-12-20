@@ -1,7 +1,6 @@
 package poc.redis.race.test;
 
 import java.net.http.HttpClient;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class CacheState {
 
@@ -45,6 +44,8 @@ public class CacheState {
 					this.state = ValueState.ACTUAL;
 					System.out.println("Cache for '" + id + "' accepted new value: " + value);
 				}
+				break;
+			case DEGRADED:
 				break;
 		}
 
