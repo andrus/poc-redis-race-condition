@@ -1,21 +1,32 @@
 package poc.redis.race.service;
 
 import redis.clients.jedis.Jedis;
+import redis.clients.jedis.JedisPool;
+import redis.clients.jedis.JedisPoolConfig;
 
 public class JedisCache {
 	
 	private static JedisCache instance;
 	
-	private int ttlMsec;
-	private final Jedis jedis;
-	
-	private JedisCache (String host, int port, int ttlMsec) {
-		this.jedis = new Jedis(host, port);
-		this.ttlMsec = ttlMsec;
+	private int ttl;
+	private JedisPool pool;
+
+	private JedisCache (String host, int port, int ttl) {
+		JedisPoolConfig config = new JedisPoolConfig();
+		config.setMaxTotal(128);
+		config.setMaxIdle(128);
+		config.setMinIdle(16);
+		config.setTestOnBorrow(true);
+		config.setTestOnReturn(true);
+		config.setTestWhileIdle(true);
+		config.setNumTestsPerEvictionRun(3);
+		config.setBlockWhenExhausted(true);
+		pool = new JedisPool(config, host, port);
+		this.ttl = ttl;
 	}
 	
-	public static void init (String host, int port,int ttlMsec) {
-		instance = new JedisCache(host, port, ttlMsec);
+	public static void init (String host, int port,int ttl) {
+		instance = new JedisCache(host, port, ttl);
 	}
 	
 	public static JedisCache getInstance () {
@@ -23,7 +34,9 @@ public class JedisCache {
 	}
 
 	public Short getScore(String id) {
+		Jedis jedis = pool.getResource();
 		String score = jedis.get(id);
+		pool.returnResource(jedis);
 		if (score != null) {
 			try {
 				return Short.parseShort(score);
@@ -35,8 +48,10 @@ public class JedisCache {
 	// Oh my, this is a very bad itead, man. We push somethin' and than tell Redis to expire it, but there'll be a lag 
 	// between two commands - nay... :)
 	public boolean setScore (String id, Short score) {
+		Jedis jedis = pool.getResource();
 		String status = jedis.set(id, String.valueOf(score));
-		jedis.expireAt(id, System.currentTimeMillis() + ttlMsec);
+		jedis.pexpire(id, ttl);
+		pool.returnResource(jedis);
 		return status.equals("OK");
 	}
 	

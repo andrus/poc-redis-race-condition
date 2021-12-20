@@ -5,6 +5,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Random;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.inject.Inject;
@@ -35,14 +36,11 @@ public class ScoreApi {
 	private short getScoreByID(String id) {
 		short score = getScoreFromCache(id);
 		if (score == ITEM_NOT_FOUND) {
-			System.out.println("Not in cache");
 			score = getScoreFromDB(id);
 			if (score != ITEM_NOT_FOUND) {
-				System.out.println("Put to cache");
 				putScoreToCache(id, score);
 			}
 		}
-		System.out.println("Got in cache");
 		return score;
 	}
 
