@@ -5,6 +5,7 @@
         <groupId>io.bootique.parent</groupId>
         <artifactId>bootique-parent</artifactId>
         <version>0.14</version>
+        <relativePath></relativePath>
     </parent>
     <groupId>poc.redis.race</groupId>
     <artifactId>service</artifactId>
@@ -59,6 +60,11 @@
             <groupId>redis.clients</groupId>
             <artifactId>jedis</artifactId>
             <version>3.7.0</version>
+        </dependency>
+        <dependency>
+            <groupId>poc.redis.race</groupId>
+            <artifactId>poc-jedis-wrapper</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
     </dependencies>
 

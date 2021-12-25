@@ -25,8 +25,15 @@ public class JedisCache {
 		this.ttl = ttl;
 	}
 	
-	public static void init (String host, int port,int ttl) {
-		instance = new JedisCache(host, port, ttl);
+	public static JedisCache init (String host, int port,int ttl) {
+		if (instance == null) {
+			instance = new JedisCache(host, port, ttl);
+			return instance;
+		} else {
+			instance.pool.close();
+			instance = null;
+			return init(host, port, ttl);
+		}
 	}
 	
 	public static JedisCache getInstance () {
@@ -53,6 +60,11 @@ public class JedisCache {
 		jedis.pexpire(id, ttl);
 		pool.returnResource(jedis);
 		return status.equals("OK");
+	}
+
+	public void shutdown() {
+		this.pool.close();
+		instance = null;
 	}
 	
 }
