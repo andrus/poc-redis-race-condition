@@ -19,30 +19,31 @@ public class RedisBasicTest {
 		final RedisTestWrapper rtw = new RedisTestWrapper();
 		rtw.wrap(() -> {
 			JedisCache cache = rtw.getCache();
-			cache.setScore("A", (short) 0);
-			cache.setScore("B", (short) 1);
-			Assert.assertEquals(0L, (long) cache.getScore("A"));
-			Assert.assertEquals(1L, (long) cache.getScore("B"));
-			cache.setScore("A", (short) 2);
-			cache.setScore("B", (short) 3);
+			cache.setInt("A", 0);
+			cache.setInt("B", 1);
+			Assert.assertEquals(2, cache.keys().size());
+			Assert.assertEquals(Integer.valueOf(0), cache.getInt("A"));
+			Assert.assertEquals(Integer.valueOf(1), cache.getInt("B"));
+			cache.setInt("A", 2);
+			cache.setInt("B", 3);
 			try {
 				Thread.sleep(400);
 			} catch (InterruptedException e) {
 				fail("InterruptedException is not supposed to raise here");
 			}
-			Assert.assertEquals(2L, (long) cache.getScore("A"));
-			Assert.assertEquals(3L, (long) cache.getScore("B"));
-			cache.setExpirableScore("A", (short) 4, 250);
-			cache.setExpirableScore("B", (short) 5, 250);
-			Assert.assertEquals(4L, (long) cache.getScore("A"));
-			Assert.assertEquals(5L, (long) cache.getScore("B"));
+			Assert.assertEquals(Integer.valueOf(2), cache.getInt("A"));
+			Assert.assertEquals(Integer.valueOf(3), cache.getInt("B"));
+			cache.setExpirableInt("A", 4, 250);
+			cache.setExpirableInt("B", 5, 250);
+			Assert.assertEquals(Integer.valueOf(4), cache.getInt("A"));
+			Assert.assertEquals(Integer.valueOf(5), cache.getInt("B"));
 			try {
 				Thread.sleep(400);
 			} catch (InterruptedException e) {
 				fail("InterruptedException is not supposed to raise here");
 			}
-			Assert.assertNull(cache.getScore("A"));
-			Assert.assertNull(cache.getScore("B"));
+			Assert.assertNull(cache.getValue("A"));
+			Assert.assertNull(cache.getValue("B"));
 		});
 		Assert.assertFalse(rtw.isRunning());
 	}

@@ -1,5 +1,6 @@
 package poc.redis.race.service;
 
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.Connection;
@@ -87,6 +88,12 @@ public class JedisCache {
 		return instance;
 	}
 
+	public Set<String> keys () {
+		try (Jedis jedis = allocJedis()) {
+			return jedis.keys("*");
+		}
+	}
+	
 	private Jedis allocJedis() {
 		if (pool == null) {
 			throw new RuntimeException("JedisCache needs to be init() before any activity");
@@ -94,33 +101,78 @@ public class JedisCache {
 		return pool.getResource();
 	}
 
-	public Short getScore(String id) {
+	public Short getShort(String key) {
+		String value = getValue(key);
+		return value == null ? null : Short.parseShort(value);
+	}
+	
+	public Integer getInt(String key) {
+		String value = getValue(key);
+		return value == null ? null : Integer.parseInt(value);
+	}
+	
+	public Long getLong(String key) {
+		String value = getValue(key);
+		return value == null ? null : Long.parseLong(value);
+	}
+	
+	public String getValue(String key) {
 		try (Jedis jedis = allocJedis()) {
-			String score = jedis.get(id);
+			String score = jedis.get(key);
 			if (score != null) {
-				try {
-					return Short.parseShort(score);
-				} catch (NumberFormatException ex) {
-				}
+				return score;
 			}
 		}
 		return null;
 	}
-
-	public boolean setScore(String id, Short score) {
+	
+	public boolean setShort(String key, Short value) {
+		return setValue(key, wrapNull(value, ""));
+	}
+	
+	public boolean setInt(String key, Integer value) {
+		return setValue(key, wrapNull(value, ""));
+	}
+	
+	public boolean setLong(String key, Long value) {
+		return setValue(key, wrapNull(value, ""));
+	}
+	
+	public boolean setValue(String key, String value) {
+		if (value == null) value = "";
 		try (Jedis jedis = allocJedis()) {
-			return jedis.set(id, String.valueOf(score)).equals(OK);
+			return jedis.set(key, value).equals(OK);
 		}
 	}
 
-	public boolean setExpirableScore(String id, Short score) {
-		return setExpirableScore(id, score, ttl);
+	public boolean setExpirableInt(String key, Integer value) {
+		return setExpirableValue(key, wrapNull(value, ""), ttl);
+	}
+	
+	public boolean setExpirableShort(String key, Short value) {
+		return setExpirableValue(key, wrapNull(value, ""), ttl);
+	}
+	
+	public boolean setExpirableLong(String key, Long value) {
+		return setExpirableValue(key, wrapNull(value, ""), ttl);
+	}
+	
+	public boolean setExpirableValue(String key, String value) {
+		return setExpirableValue(key, value, ttl);
 	}
 
-	public boolean setExpirableScore(String id, Short score, int forcedTTL) {
+	public boolean setExpirableInt(String key, Integer value, int forcedTTL) {
+		return setExpirableValue(key, wrapNull(value, ""), forcedTTL);
+	}
+	
+	public boolean setExpirableLong(String key, Long value, int forcedTTL) {
+		return setExpirableValue(key, wrapNull(value, ""), forcedTTL);
+	}
+	
+	public boolean setExpirableValue(String key, String value, int forcedTTL) {
 		try (Jedis jedis = allocJedis()) {
-			if (jedis.set(id, String.valueOf(score)).equals(OK)) {
-				return jedis.pexpire(id, forcedTTL) == 1L;
+			if (jedis.set(key, value).equals(OK)) {
+				return jedis.pexpire(key, forcedTTL) == 1L;
 			} else {
 				return false;
 			}
@@ -129,8 +181,12 @@ public class JedisCache {
 
 	public void shutdown() {
 		this.monitorJedis.close();
+		this.monitorThread.interrupt();
 		this.pool.close();
 		instance = null;
 	}
 
+	public static String wrapNull(Object source, String nullString) {
+        return source == null ? nullString : source.toString();
+    }
 }
