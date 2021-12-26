@@ -82,7 +82,7 @@ public class ScoreApi {
 		Timer.Context context = this.cacheWriteTimer.time();
 		try {
 			this.cacheWritesCounter.inc();
-			return JedisCache.getInstance().setScore(id, score);
+			return JedisCache.getInstance().setShort(id, score);
 		} finally {
 			context.stop();
 		}
@@ -91,7 +91,7 @@ public class ScoreApi {
 	private short getScoreFromCache(String id) {
 		Timer.Context context = this.cacheSearchTimer.time();
 		try {
-			Short score = JedisCache.getInstance().getScore(id);
+			Short score = JedisCache.getInstance().getShort(id);
 			if (score == null) {
 				this.cacheMissCounter.inc();
 				return ITEM_NOT_FOUND;
