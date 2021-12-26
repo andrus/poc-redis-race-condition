@@ -3,6 +3,12 @@ package poc.redis.race.service;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import poc.redis.race.service.impl.BlindWrite;
+import poc.redis.race.service.impl.CheckAndSet;
+import poc.redis.race.service.impl.DummyWatchAndWrite;
+import poc.redis.race.service.impl.PessimisticLock;
+import poc.redis.race.service.impl.TransactionWatchWrite;
+import poc.redis.race.service.impl.WatchTransactionWrite;
 import redis.clients.jedis.Connection;
 import redis.clients.jedis.Jedis;
 import redis.clients.jedis.JedisMonitor;
@@ -10,7 +16,16 @@ import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
 import redis.clients.jedis.exceptions.JedisConnectionException;
 
-public class JedisCache {
+public abstract class JedisCache {
+
+	enum ImplementationVariant {
+		BLIND_WRITE,
+		DUMMY_WATCH_AND_WRITE,
+		WATCH_TRANSACTION_WRITE,
+		TRANSACTION_WATCH_WRITE,
+		CHECK_AND_SET,
+		PESSIMISTIC_LOCK
+	}
 
 	private static JedisCache instance;
 	public static final int DEFAULT_REDIS_TTL_MSEC = 300;
@@ -21,7 +36,7 @@ public class JedisCache {
 	private Thread monitorThread = null;
 	private Jedis monitorJedis = null;
 
-	private JedisCache(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
+	protected JedisCache(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
 		JedisPoolConfig config = new JedisPoolConfig();
 		config.setMaxTotal(128);
 		config.setMaxIdle(128);
@@ -72,17 +87,42 @@ public class JedisCache {
 	}
 
 	public static JedisCache init(String host, int port, int ttl) {
-		return init(host, port, ttl, null, false);
+		return init(host, port, ttl, null, false, ImplementationVariant.BLIND_WRITE);
 	}
 
-	public static JedisCache init(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
+	public static JedisCache init(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests, ImplementationVariant variant) {
 		if (instance == null) {
-			instance = new JedisCache(host, port, ttl, loggerPrefix, enablePoolTests);
+			switch (variant) {
+				case BLIND_WRITE: {
+					instance = new BlindWrite(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case DUMMY_WATCH_AND_WRITE: {
+					instance = new DummyWatchAndWrite(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case WATCH_TRANSACTION_WRITE: {
+					instance = new WatchTransactionWrite(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case TRANSACTION_WATCH_WRITE: {
+					instance = new TransactionWatchWrite(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case CHECK_AND_SET: {
+					instance = new CheckAndSet(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case PESSIMISTIC_LOCK: {
+					instance = new PessimisticLock(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+			}
 			return instance;
 		} else {
 			instance.pool.close();
 			instance = null;
-			return init(host, port, ttl, loggerPrefix, enablePoolTests);
+			return init(host, port, ttl, loggerPrefix, enablePoolTests, variant);
 		}
 	}
 
@@ -96,12 +136,36 @@ public class JedisCache {
 		}
 	}
 
-	private Jedis allocJedis() {
+	protected Jedis allocJedis() {
 		if (pool == null) {
 			throw new RuntimeException("JedisCache needs to be init() before any activity");
 		}
 		return pool.getResource();
 	}
+
+	public String getValue(String key) {
+		try (Jedis jedis = allocJedis()) {
+			return getValue(jedis, key);
+		}
+	}
+
+	public boolean setValue(String key, String value) {
+		try (Jedis jedis = allocJedis()) {
+			return setValue(jedis, key, value);
+		}
+	}
+
+	public boolean setExpirableValue(String key, String value, int forcedTTL) {
+		try (Jedis jedis = allocJedis()) {
+			return setExpirableValue(jedis, key, value);
+		}
+	}
+
+	public abstract String getValue(Jedis jedis, String key);
+
+	public abstract boolean setValue(Jedis jedis, String key, String value);
+
+	public abstract boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL);
 
 	public Short getShort(String key) {
 		String value = getValue(key);
@@ -118,16 +182,6 @@ public class JedisCache {
 		return value == null ? null : Long.parseLong(value);
 	}
 
-	public String getValue(String key) {
-		try (Jedis jedis = allocJedis()) {
-			String score = jedis.get(key);
-			if (score != null) {
-				return score;
-			}
-		}
-		return null;
-	}
-
 	public boolean setShort(String key, Short value) {
 		return setValue(key, wrapNull(value, ""));
 	}
@@ -138,15 +192,6 @@ public class JedisCache {
 
 	public boolean setLong(String key, Long value) {
 		return setValue(key, wrapNull(value, ""));
-	}
-
-	public boolean setValue(String key, String value) {
-		if (value == null) {
-			value = "";
-		}
-		try (Jedis jedis = allocJedis()) {
-			return jedis.set(key, value).equals(OK);
-		}
 	}
 
 	public boolean setExpirableInt(String key, Integer value) {
@@ -173,18 +218,58 @@ public class JedisCache {
 		return setExpirableValue(key, wrapNull(value, ""), forcedTTL);
 	}
 
-	public boolean setExpirableValue(String key, String value, int forcedTTL) {
-		try (Jedis jedis = allocJedis()) {
-			if (jedis.set(key, value).equals(OK)) {
-				return jedis.pexpire(key, forcedTTL) == 1L;
-			} else {
-				return false;
-			}
-		}
+	public Short getShort(Jedis jedis, String key) {
+		String value = getValue(jedis, key);
+		return value == null ? null : Short.parseShort(value);
+	}
+
+	public Integer getInt(Jedis jedis, String key) {
+		String value = getValue(jedis, key);
+		return value == null ? null : Integer.parseInt(value);
+	}
+
+	public Long getLong(Jedis jedis, String key) {
+		String value = getValue(jedis, key);
+		return value == null ? null : Long.parseLong(value);
+	}
+
+	public boolean setShort(Jedis jedis, String key, Short value) {
+		return setValue(jedis, key, wrapNull(value, ""));
+	}
+
+	public boolean setInt(Jedis jedis, String key, Integer value) {
+		return setValue(jedis, key, wrapNull(value, ""));
+	}
+
+	public boolean setLong(Jedis jedis, String key, Long value) {
+		return setValue(jedis, key, wrapNull(value, ""));
+	}
+
+	public boolean setExpirableInt(Jedis jedis, String key, Integer value) {
+		return setExpirableValue(jedis, key, wrapNull(value, ""), ttl);
+	}
+
+	public boolean setExpirableShort(Jedis jedis, String key, Short value) {
+		return setExpirableValue(jedis, key, wrapNull(value, ""), ttl);
+	}
+
+	public boolean setExpirableLong(Jedis jedis, String key, Long value) {
+		return setExpirableValue(jedis, key, wrapNull(value, ""), ttl);
+	}
+
+	public boolean setExpirableValue(Jedis jedis, String key, String value) {
+		return setExpirableValue(jedis, key, value, ttl);
+	}
+
+	public boolean setExpirableInt(Jedis jedis, String key, Integer value, int forcedTTL) {
+		return setExpirableValue(jedis, key, wrapNull(value, ""), forcedTTL);
+	}
+
+	public boolean setExpirableLong(Jedis jedis, String key, Long value, int forcedTTL) {
+		return setExpirableValue(jedis, key, wrapNull(value, ""), forcedTTL);
 	}
 
 	public void shutdown() {
-		this.monitorJedis.close();
 		this.monitorThread.interrupt();
 		this.pool.close();
 		instance = null;

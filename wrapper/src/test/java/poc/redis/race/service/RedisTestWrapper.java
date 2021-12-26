@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
+import poc.redis.race.service.JedisCache.ImplementationVariant;
 
 public class RedisTestWrapper {
 
@@ -12,6 +13,7 @@ public class RedisTestWrapper {
 	private static final DockerImageName DOCKER_IMAGE_NAME = DockerImageName.parse("redis:6");
 
 	ArrayList<JedisCache> caches;
+	ImplementationVariant variant;
 	
 	String address;
 	Integer port;
@@ -19,16 +21,21 @@ public class RedisTestWrapper {
 	boolean running;
 
 	public RedisTestWrapper() {
-		this(JedisCache.DEFAULT_REDIS_TTL_MSEC);
+		this(JedisCache.DEFAULT_REDIS_TTL_MSEC, ImplementationVariant.BLIND_WRITE);
+	}
+	
+	public RedisTestWrapper(ImplementationVariant variant) {
+		this(JedisCache.DEFAULT_REDIS_TTL_MSEC, variant);
 	}
 
-	public RedisTestWrapper(int ttl) {
-		this(DEFAULT_REDIS_PORT, ttl);
+	public RedisTestWrapper(int ttl, ImplementationVariant variant) {
+		this(DEFAULT_REDIS_PORT, ttl, variant);
 	}
 
-	public RedisTestWrapper(int port, int ttl) {
+	public RedisTestWrapper(int port, int ttl, ImplementationVariant variant) {
 		this.port = port;
 		this.ttl = ttl;
+		this.variant = variant;
 		this.caches = new ArrayList<JedisCache>();  
 	}
 
@@ -61,7 +68,7 @@ public class RedisTestWrapper {
 	}
 	
 	public JedisCache getCache(int ttl, String loggerPrefix, boolean enablePoolTests) {
-		JedisCache cache = JedisCache.init(address, port, ttl, loggerPrefix, enablePoolTests);
+		JedisCache cache = JedisCache.init(address, port, ttl, loggerPrefix, enablePoolTests, this.variant);
 		this.caches.add(cache);
 		return cache;
 	}
