@@ -1,5 +1,6 @@
 package poc.redis.race.service;
 
+import java.util.HashMap;
 import org.junit.Assert;
 import org.junit.Before;
 
@@ -44,6 +45,24 @@ public class RedisBasicTest {
 			}
 			Assert.assertNull(cache.getValue("A"));
 			Assert.assertNull(cache.getValue("B"));
+		});
+		Assert.assertFalse(rtw.isRunning());
+	}
+	
+	@Test
+	public void dbEmitTest() {
+		HashMap <String, Integer> kindaDatabase = new HashMap<String, Integer>(){{
+			put("key", 0);
+		}};
+		final RedisTestWrapper rtw = new RedisTestWrapper();
+		rtw.wrap(() -> {
+			String key = "key";
+			JedisCache cache = rtw.getCache();
+			Assert.assertNull(cache.getInt(key));
+			Integer value = kindaDatabase.get(key);
+			Assert.assertEquals(Integer.valueOf(0), value);
+			Assert.assertTrue(cache.setInt(key, value));
+			Assert.assertEquals(Integer.valueOf(0), cache.getInt(key));
 		});
 		Assert.assertFalse(rtw.isRunning());
 	}
