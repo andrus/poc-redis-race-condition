@@ -52,20 +52,17 @@ public class PessimisticLock extends JedisCache {
 		Transaction transaction = jedis.multi();
 		transaction.get(key);
 		transaction.set(PESSIMISTIC_LOCK_KEY, String.valueOf(System.currentTimeMillis()) + "." + String.valueOf(System.nanoTime()));
-		if (transaction.set(key, value).equals(OK)) {
-			transaction.pexpire(key, forcedTTL);
-			List<Object> exec = transaction.exec();
-			if (exec == null) {
-				return false;
-			}
-			for (Object o : exec) {
-				if (o == null || !o.toString().equals("OK")) {
-					return false;
-				}
-			}
-			return true;
-		} else {
+		transaction.set(key, value);
+		transaction.pexpire(key, forcedTTL);
+		List<Object> exec = transaction.exec();
+		if (exec == null) {
 			return false;
 		}
+		for (Object o : exec) {
+			if (o == null || !o.toString().equals("OK")) {
+				return false;
+			}
+		}
+		return true;
 	}
 }

@@ -50,6 +50,16 @@ public class RedisRaceTest {
 		testCase(ImplementationVariant.PESSIMISTIC_LOCK, true, true);
 	}
 
+	@Test
+	public void checkAndSetWithConnectionPerRequest() {
+		testCase(ImplementationVariant.CHECK_AND_SET, false, false);
+	}
+	
+	@Test
+	public void pessimisticLockWithConnectionPerRequest() {
+		testCase(ImplementationVariant.PESSIMISTIC_LOCK, false, false);
+	}
+
 
 	private void testCase(ImplementationVariant variant, boolean connectionPerClient, boolean noOverwrite) {
 		kindaDatabase = new HashMap<String, Integer>();
@@ -148,6 +158,8 @@ public class RedisRaceTest {
 				Thread.sleep(50);
 				redisValue = cache.getInt(jedis, key);
 				log.info("Asked cache for key - got '" + redisValue + "'");
+			} catch (Exception ex) {
+				throw ex;
 			}
 		} else {
 			Integer value = cache.getInt(key);
@@ -166,8 +178,12 @@ public class RedisRaceTest {
 				newValueWritten.acquire();
 			}
 
-			Assert.assertTrue(cache.setInt(key, value));
-			log.info("Put value to cache");
+			boolean valueWasSet = cache.setInt(key, value);
+			if (valueWasSet) {
+				log.info("Put value to cache");
+			} else {
+				log.info("Redis rejected new value");
+			}
 
 			if (!saboteur) {
 				newValueWritten.release();

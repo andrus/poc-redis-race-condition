@@ -46,21 +46,18 @@ public class CheckAndSet extends JedisCache {
 			value = "";
 		}
 		Transaction transaction = jedis.multi();
-		if (transaction.set(key, value).equals(OK)) {
-			transaction.pexpire(key, forcedTTL);
-			List<Object> exec = transaction.exec();
-			if (exec == null) {
-				return false;
-			}
-			for (Object o : exec) {
-				if (o == null || !o.toString().equals("OK")) {
-					return false;
-				}
-			}
-			return true;
-		} else {
+		transaction.set(key, value);
+		transaction.pexpire(key, forcedTTL);
+		List<Object> exec = transaction.exec();
+		if (exec == null) {
 			return false;
 		}
+		for (Object o : exec) {
+			if (o == null || !o.toString().equals("OK")) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 }

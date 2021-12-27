@@ -44,18 +44,15 @@ public class WatchTransactionWrite extends JedisCache {
 		}
 		jedis.watch(key);
 		Transaction transaction = jedis.multi();
-		if (transaction.set(key, value).equals(OK)) {
-			transaction.pexpire(key, forcedTTL);
-			List<Object> exec = transaction.exec();
-			for (Object o : exec) {
-				if (!o.toString().equals("OK")) {
-					return false;
-				}
+		transaction.set(key, value);
+		transaction.pexpire(key, forcedTTL);
+		List<Object> exec = transaction.exec();
+		for (Object o : exec) {
+			if (!o.toString().equals("OK")) {
+				return false;
 			}
-			return true;
-		} else {
-			return false;
 		}
+		return true;
 	}
 	
 }
