@@ -86,10 +86,4 @@ public class pocTest {
 		return -1;
 	}
 
-//	@Test
-//	public void fixTest() {
-//		int aa = 0;
-//		aa = 99 / 9;
-//		assertEquals(11, aa);
-//	}
 }

@@ -57,11 +57,6 @@
             <version>8.0.27</version>
         </dependency>
         <dependency>
-            <groupId>redis.clients</groupId>
-            <artifactId>jedis</artifactId>
-            <version>3.7.0</version>
-        </dependency>
-        <dependency>
             <groupId>poc.redis.race</groupId>
             <artifactId>poc-jedis-wrapper</artifactId>
             <version>1.0-SNAPSHOT</version>
