@@ -4,10 +4,6 @@ jdbc:
     username: user
     password: password
 
-jetty:
-  connectors:
-    - port: 9090
-
 metrics:
   reporters:
     - type: slf4j
