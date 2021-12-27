@@ -36,11 +36,6 @@ public class RedisRaceTest {
 	}
 
 	@Test
-	public void transactionWatchWrite() {
-		testCase(ImplementationVariant.TRANSACTION_WATCH_WRITE, false, false);
-	}
-	
-	@Test
 	public void checkAndSet() {
 		testCase(ImplementationVariant.CHECK_AND_SET, true, true);
 	}

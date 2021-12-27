@@ -7,7 +7,6 @@ import poc.redis.race.service.impl.BlindWrite;
 import poc.redis.race.service.impl.CheckAndSet;
 import poc.redis.race.service.impl.DummyWatchAndWrite;
 import poc.redis.race.service.impl.PessimisticLock;
-import poc.redis.race.service.impl.TransactionWatchWrite;
 import poc.redis.race.service.impl.WatchTransactionWrite;
 import redis.clients.jedis.Connection;
 import redis.clients.jedis.Jedis;
@@ -22,7 +21,6 @@ public abstract class JedisCache {
 		BLIND_WRITE,
 		DUMMY_WATCH_AND_WRITE,
 		WATCH_TRANSACTION_WRITE,
-		TRANSACTION_WATCH_WRITE,
 		CHECK_AND_SET,
 		PESSIMISTIC_LOCK
 	}
@@ -103,10 +101,6 @@ public abstract class JedisCache {
 				}
 				case WATCH_TRANSACTION_WRITE: {
 					instance = new WatchTransactionWrite(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
-				case TRANSACTION_WATCH_WRITE: {
-					instance = new TransactionWatchWrite(host, port, ttl, loggerPrefix, enablePoolTests);
 					break;
 				}
 				case CHECK_AND_SET: {
