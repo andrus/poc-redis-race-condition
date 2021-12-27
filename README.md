@@ -48,8 +48,17 @@ MySQL, Redis and Traefik have single official image available on DockerHub, so t
 
 Spent about an hour on Bootique module mechanics - maybe we just don't click with it. Will look at it again soon.
 
-<!--
-## How to use
-## Next steps possible
-## Tools used
--->
+## Finding
+
+First of all current implementation of PoC does not help with checking right way to cook a Redis. It helped us to validate that race condition occures, also we've realised that it's not 'that' common and mostly can happen when load is high.
+
+Strangely we've seen that Redis can prioritise requests which ask value of key added first.Maybe that was a coicidence, but couple times we've seen such strange behaviour.
+
+## Next steps
+
+As it've been denoted above current implementation doesn't help us to learn to cook, so we need:
+
+- recreate test stand which will steadily reproduce race condition
+- implement fix for race condition on a test stand
+- check obtained solutions on current implementation (production-like test)
+- write down recipe for well cooked Redis

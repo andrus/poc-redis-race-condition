@@ -48,4 +48,6 @@ services:
       - 8080
     volumes:
       - ./service:/usr/app:delegated
-    command: sh -c "cd /usr/app/ && java -jar target/service-1.0-SNAPSHOT.jar --server -c config-prod.yml"
+    command: sh -c "cd /usr/app/ && java -jar target/service-1.0-SNAPSHOT.jar --server -c config-prod.yml --single-jedi=false --jedi-strategy=blind"
+    # command: sh -c "cd /usr/app/ && java -jar target/service-1.0-SNAPSHOT.jar --server -c config-prod.yml --single-jedi=true --jedi-strategy=cas"
+    # command: sh -c "cd /usr/app/ && java -jar target/service-1.0-SNAPSHOT.jar --server -c config-prod.yml --single-jedi=true --jedi-strategy=pessimistic"
