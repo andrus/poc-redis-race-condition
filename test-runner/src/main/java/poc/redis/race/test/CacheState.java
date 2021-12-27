@@ -52,14 +52,14 @@ public class CacheState {
 	}
 
 	public synchronized void shedule(short value) {
-		if (this.current != value) {
+		if (this.state == ValueState.ACTUAL && this.current != value) {
 			this.sheduled = value;
 			this.state = ValueState.SHEDULED;
 			System.out.println("Cache for '" + id + "' sheduled new value: " + value);
 		}
 	}
 
-	public ValueState getState() {
+	public synchronized ValueState getState() {
 		return this.state;
 	}
 
