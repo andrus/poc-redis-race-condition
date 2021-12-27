@@ -2,11 +2,13 @@ package poc.redis.race.service;
 
 import java.util.HashMap;
 import java.util.concurrent.Semaphore;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import poc.redis.race.service.JedisCache.ImplementationVariant;
 import redis.clients.jedis.Jedis;
 
@@ -43,6 +45,16 @@ public class RedisRaceTest {
 	@Test
 	public void pessimisticLock() {
 		testCase(ImplementationVariant.PESSIMISTIC_LOCK, true, true);
+	}
+	
+	@Test
+	public void lateCheckAndSet() {
+		testCase(ImplementationVariant.LATE_CHECK_AND_SET, true, false);
+	}
+	
+	@Test
+	public void latePessimisticLock() {
+		testCase(ImplementationVariant.LATE_PESSIMISTIC_LOCK, true, false);
 	}
 
 	@Test

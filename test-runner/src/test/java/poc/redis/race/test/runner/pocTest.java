@@ -16,8 +16,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import poc.redis.race.test.CacheState;
+import poc.redis.race.test.CacheState.ValueState;
 import poc.redis.race.test.PoC;
-import poc.redis.race.test.ValueState;
 
 public class pocTest {
 

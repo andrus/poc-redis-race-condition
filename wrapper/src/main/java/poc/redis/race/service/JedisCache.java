@@ -1,11 +1,15 @@
 package poc.redis.race.service;
 
 import java.util.Set;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import poc.redis.race.service.impl.BlindWrite;
 import poc.redis.race.service.impl.CheckAndSet;
 import poc.redis.race.service.impl.DummyWatchAndWrite;
+import poc.redis.race.service.impl.LateCheckAndSet;
+import poc.redis.race.service.impl.LatePessimisticLock;
 import poc.redis.race.service.impl.PessimisticLock;
 import poc.redis.race.service.impl.WatchTransactionWrite;
 import redis.clients.jedis.Connection;
@@ -22,7 +26,9 @@ public abstract class JedisCache {
 		DUMMY_WATCH_AND_WRITE,
 		WATCH_TRANSACTION_WRITE,
 		CHECK_AND_SET,
-		PESSIMISTIC_LOCK
+		PESSIMISTIC_LOCK,
+		LATE_CHECK_AND_SET,
+		LATE_PESSIMISTIC_LOCK
 	}
 
 	private static JedisCache instance;
@@ -109,6 +115,14 @@ public abstract class JedisCache {
 				}
 				case PESSIMISTIC_LOCK: {
 					instance = new PessimisticLock(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case LATE_CHECK_AND_SET: {
+					instance = new LateCheckAndSet(host, port, ttl, loggerPrefix, enablePoolTests);
+					break;
+				}
+				case LATE_PESSIMISTIC_LOCK: {
+					instance = new LatePessimisticLock(host, port, ttl, loggerPrefix, enablePoolTests);
 					break;
 				}
 			}

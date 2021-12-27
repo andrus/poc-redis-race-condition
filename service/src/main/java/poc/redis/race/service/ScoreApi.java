@@ -1,23 +1,25 @@
 package poc.redis.race.service;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
-import io.bootique.cli.Cli;
-import io.bootique.jdbc.DataSourceFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+
+import io.bootique.cli.Cli;
+import io.bootique.jdbc.DataSourceFactory;
 import redis.clients.jedis.Jedis;
 
 @Path("/")
@@ -93,6 +95,18 @@ public class ScoreApi {
 				}
 				case "pessimistic" : {
 					strategy = JedisCache.ImplementationVariant.PESSIMISTIC_LOCK;
+					break;
+				}
+				case "late-cas" : {
+					strategy = JedisCache.ImplementationVariant.LATE_CHECK_AND_SET;
+					break;
+				}
+				case "late-pessimistic" : {
+					strategy = JedisCache.ImplementationVariant.LATE_PESSIMISTIC_LOCK;
+					break;
+				}
+				default:{
+					strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
 					break;
 				}
 			}

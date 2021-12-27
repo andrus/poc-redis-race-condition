@@ -3,6 +3,12 @@ package poc.redis.race.test;
 import java.net.http.HttpClient;
 
 public class CacheState {
+	
+	public enum ValueState {
+		SHEDULED,
+		ACTUAL,
+		DEGRADED;
+	}
 
 	public short sheduled;
 	public short current;

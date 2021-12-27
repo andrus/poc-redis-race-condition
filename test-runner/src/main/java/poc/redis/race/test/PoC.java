@@ -11,6 +11,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import poc.redis.race.test.CacheState.ValueState;
 
 public class PoC {
 
