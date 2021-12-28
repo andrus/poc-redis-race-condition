@@ -114,9 +114,24 @@ public abstract class JedisCache {
 
 	public abstract String getValue(Jedis jedis, String key);
 
-	public abstract boolean setValue(Jedis jedis, String key, String value);
+	public boolean setValue(Jedis jedis, String key, String value) {
+		if (value == null) {
+			value = "";
+		}
+		return _setValue(jedis, key, value);
+	}
+	
+	
+	public abstract boolean _setValue(Jedis jedis, String key, String value);
 
-	public abstract boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL);
+	public boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL){
+		if (value == null) {
+			value = "";
+		}
+		return _setExpirableValue(jedis, key, value, forcedTTL);
+	}
+	
+	public abstract boolean _setExpirableValue(Jedis jedis, String key, String value, int forcedTTL);
 
 	public Short getShort(String key) {
 		String value = getValue(key);
