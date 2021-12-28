@@ -80,7 +80,7 @@ public class ScoreApi {
 						must be really hard to reproduce (we need to hit re-read exactly at expiry, which is not 
 						realistic)
 					*/
-					System.out.println("RE-READ");
+//					System.out.println("RE-READ"); // good for illustratoin in terminal
 					return _getScoreByID(jedis, id);
 				}
 			}
