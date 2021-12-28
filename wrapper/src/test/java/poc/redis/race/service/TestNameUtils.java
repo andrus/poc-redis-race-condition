@@ -1,6 +1,5 @@
 package poc.redis.race.service;
 
-
 import org.junit.rules.TestName;
 
 public class TestNameUtils {

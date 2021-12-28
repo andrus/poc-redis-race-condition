@@ -1,14 +1,5 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package poc.redis.race.service;
 
-/**
- *
- * @author Edward M. Kagan {@literal <}kaganem{@literal @}2pm.tech{@literal >}
- */
 public class CacheHelper {
 	
 	private static JedisCache cache;
@@ -19,7 +10,6 @@ public class CacheHelper {
 	
 	public static JedisCache init (String strategyOption) {
 		if (cache == null) {
-//			String strategyOption = 
 			JedisCache.ImplementationVariant strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
 			switch (strategyOption) {
 				case "blind" : {
@@ -55,8 +45,7 @@ public class CacheHelper {
 					break;
 				}
 			}
-//			cache = JedisCache.init("cache", 16379, 200, true, strategy);
-			cache = JedisCache.init("cache", 6379, 200, true, strategy);
+			cache = JedisCache.init("cache", 6379, 11, false, strategy);
 		}
 		return cache;
 	}

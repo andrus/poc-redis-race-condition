@@ -52,7 +52,7 @@ public class RedisBasicTest {
 		cache.setInt("A", 2);
 		cache.setInt("B", 3);
 		try {
-			Thread.sleep(400);
+			Thread.sleep(JedisCache.DEFAULT_REDIS_TTL_MSEC + 50);
 		} catch (InterruptedException e) {
 			fail("InterruptedException is not supposed to raise here");
 		}
@@ -63,7 +63,7 @@ public class RedisBasicTest {
 		Assert.assertEquals(Integer.valueOf(4), cache.getInt("A"));
 		Assert.assertEquals(Integer.valueOf(5), cache.getInt("B"));
 		try {
-			Thread.sleep(400);
+			Thread.sleep(JedisCache.DEFAULT_REDIS_TTL_MSEC + 50);
 		} catch (InterruptedException e) {
 			fail("InterruptedException is not supposed to raise here");
 		}
