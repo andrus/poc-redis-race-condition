@@ -7,8 +7,8 @@ import redis.clients.jedis.Transaction;
 
 public class CheckAndSet extends JedisCache {
 
-	public CheckAndSet(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
-		super(host, port, ttl, loggerPrefix, enablePoolTests);
+	public CheckAndSet(String host, int port, int ttl, boolean enablePoolTests) {
+		super(host, port, ttl, enablePoolTests);
 	}
 
 	@Override

@@ -8,8 +8,8 @@ import redis.clients.jedis.Transaction;
 
 public class LateCheckAndSet extends JedisCache {
 
-	public LateCheckAndSet(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
-		super(host, port, ttl, loggerPrefix, enablePoolTests);
+	public LateCheckAndSet(String host, int port, int ttl, boolean enablePoolTests) {
+		super(host, port, ttl, enablePoolTests);
 	}
 
 	@Override

@@ -5,8 +5,8 @@ import redis.clients.jedis.Jedis;
 
 public class DummyWatchAndWrite extends JedisCache {
 
-	public DummyWatchAndWrite(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
-		super(host, port, ttl, loggerPrefix, enablePoolTests);
+	public DummyWatchAndWrite(String host, int port, int ttl, boolean enablePoolTests) {
+		super(host, port, ttl, enablePoolTests);
 	}
 
 	@Override

@@ -10,8 +10,8 @@ public class LatePessimisticLock extends JedisCache {
 
 	private static final String PESSIMISTIC_LOCK_KEY = "PESSIMISTIC_LOCKED";
 
-	public LatePessimisticLock(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
-		super(host, port, ttl, loggerPrefix, enablePoolTests);
+	public LatePessimisticLock(String host, int port, int ttl, boolean enablePoolTests) {
+		super(host, port, ttl, enablePoolTests);
 	}
 
 	@Override

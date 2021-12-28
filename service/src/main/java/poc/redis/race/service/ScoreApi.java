@@ -34,15 +34,15 @@ public class ScoreApi {
 	private static final short DUBLICATE_IN_DB_ERROR = -103;
 	private static final short REDIS_REJECTED_WRITE = -104;
 
-	private Timer responseTimer;
-	private Timer cacheSearchTimer;
-	private Timer dbSearchTimer;
-	private Timer cacheWriteTimer;
+	private final Timer responseTimer;
+	private final Timer cacheSearchTimer;
+	private final Timer dbSearchTimer;
+	private final Timer cacheWriteTimer;
 
-	private Counter requestCounter;
-	private Counter cacheHitCounter;
-	private Counter cacheMissCounter;
-	private Counter cacheWritesCounter;
+	private final Counter requestCounter;
+	private final Counter cacheHitCounter;
+	private final Counter cacheMissCounter;
+	private final Counter cacheWritesCounter;
 
 	@Inject
 	private DataSourceFactory dataSourceFactory;
@@ -73,57 +73,19 @@ public class ScoreApi {
 		if (singularityOption != null) {
 			singleJedi = singularityOption.equals("true");
 		}
-		if (JedisCache.getInstance() == null) {
-			String strategyOption = cli.optionString("jedi-strategy");
-			JedisCache.ImplementationVariant strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
-			switch (strategyOption) {
-				case "blind" : {
-					strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
-					break;
-				}
-				case "dummy" : {
-					strategy = JedisCache.ImplementationVariant.DUMMY_WATCH_AND_WRITE;
-					break;
-				}
-				case "wtw" : {
-					strategy = JedisCache.ImplementationVariant.WATCH_TRANSACTION_WRITE;
-					break;
-				}
-				case "cas" : {
-					strategy = JedisCache.ImplementationVariant.CHECK_AND_SET;
-					break;
-				}
-				case "pessimistic" : {
-					strategy = JedisCache.ImplementationVariant.PESSIMISTIC_LOCK;
-					break;
-				}
-				case "late-cas" : {
-					strategy = JedisCache.ImplementationVariant.LATE_CHECK_AND_SET;
-					break;
-				}
-				case "late-pessimistic" : {
-					strategy = JedisCache.ImplementationVariant.LATE_PESSIMISTIC_LOCK;
-					break;
-				}
-				default:{
-					strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
-					break;
-				}
-			}
-//			JedisCache.init("localhost", 16379, 200, null, true, strategy);
-			JedisCache.init("cache", 6379, 200, null, true, strategy);
+		JedisCache cache = CacheHelper.getInstance();
+		if (cache == null) {
+			cache = CacheHelper.init(cli.optionString("jedi-strategy"));
 		}
-		
 		Timer.Context context = this.responseTimer.time();
 		try {
 			if (singleJedi) {
-				JedisCache cache = JedisCache.getInstance();
 				try (Jedis jedis = cache.allocJedis()) {
-					short score = getScoreFromCache(cache, jedis, id);
+					short score = getScoreFromCache(jedis, id);
 					if (score == ITEM_NOT_FOUND) {
 						score = getScoreFromDB(id);
 						if (score != ITEM_NOT_FOUND) {
-							boolean valueWasSet = putScoreToCache(cache, jedis, id, score);
+							boolean valueWasSet = putScoreToCache(jedis, id, score);
 							if (!valueWasSet) {
 								return REDIS_REJECTED_WRITE;
 							}
@@ -132,11 +94,11 @@ public class ScoreApi {
 					return score;
 				}
 			} else {
-				short score = getScoreFromCache(null, null, id);
+				short score = getScoreFromCache(null, id);
 				if (score == ITEM_NOT_FOUND) {
 					score = getScoreFromDB(id);
 					if (score != ITEM_NOT_FOUND) {
-						boolean valueWasSet = putScoreToCache(null, null, id, score);
+						boolean valueWasSet = putScoreToCache(null, id, score);
 						if (!valueWasSet) {
 							return REDIS_REJECTED_WRITE;
 						}
@@ -151,28 +113,28 @@ public class ScoreApi {
 
 	private static final String GET_SCORES_STATEMENT = "SELECT score FROM scores WHERE id = ?";
 
-	private boolean putScoreToCache(JedisCache cache, Jedis jedis, String id, Short score) {
+	private boolean putScoreToCache(Jedis jedis, String id, Short score) {
 		Timer.Context context = this.cacheWriteTimer.time();
 		try {
 			this.cacheWritesCounter.inc();
 			if (jedis == null) {
-				return JedisCache.getInstance().setExpirableShort(id, score);
+				return CacheHelper.getInstance().setExpirableShort(id, score);
 			} else {
-				return cache.setExpirableShort(jedis, id, score);
+				return CacheHelper.getInstance().setExpirableShort(jedis, id, score);
 			}
 		} finally {
 			context.stop();
 		}
 	}
 
-	private short getScoreFromCache(JedisCache cache, Jedis jedis, String id) {
+	private short getScoreFromCache(Jedis jedis, String id) {
 		Timer.Context context = this.cacheSearchTimer.time();
 		try {
 			Short score;
 			if (jedis == null) {
-				score = JedisCache.getInstance().getShort(id);
+				score = CacheHelper.getInstance().getShort(id);
 			} else {
-				score = cache.getShort(jedis, id);
+				score = CacheHelper.getInstance().getShort(jedis, id);
 			}
 			if (score == null) {
 				this.cacheMissCounter.inc();
