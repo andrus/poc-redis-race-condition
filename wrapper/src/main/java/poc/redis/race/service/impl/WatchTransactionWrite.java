@@ -31,8 +31,11 @@ public class WatchTransactionWrite extends BlindWrite {
 		transaction.set(key, value);
 		transaction.pexpire(key, forcedTTL);
 		List<Object> exec = transaction.exec();
+		if (exec == null) {
+			return false;
+		}
 		for (Object o : exec) {
-			if (!o.toString().equals("OK")) {
+			if (o == null || (!o.toString().equals("OK") && !o.toString().equals("1"))) {
 				return false;
 			}
 		}

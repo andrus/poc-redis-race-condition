@@ -45,7 +45,7 @@ public class CacheHelper {
 					break;
 				}
 			}
-			cache = JedisCache.init("cache", 6379, 11, false, strategy);
+			cache = JedisCache.init("cache", 6379, 300, false, strategy);
 		}
 		return cache;
 	}

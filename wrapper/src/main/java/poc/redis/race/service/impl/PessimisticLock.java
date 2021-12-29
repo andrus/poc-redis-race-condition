@@ -47,7 +47,7 @@ public class PessimisticLock extends JedisCache {
 			return false;
 		}
 		for (Object o : exec) {
-			if (o == null || !o.toString().equals("OK")) {
+			if (o == null || (!o.toString().equals("OK") && !o.toString().equals("1"))) {
 				return false;
 			}
 		}
