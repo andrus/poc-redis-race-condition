@@ -1,23 +1,25 @@
 package poc.redis.race.service;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.MetricRegistry;
-import com.codahale.metrics.Timer;
-import io.bootique.cli.Cli;
-import io.bootique.jdbc.DataSourceFactory;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import javax.inject.Inject;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.MetricRegistry;
+import com.codahale.metrics.Timer;
+
+import io.bootique.cli.Cli;
+import io.bootique.jdbc.DataSourceFactory;
 import redis.clients.jedis.Jedis;
 
 @Path("/")
@@ -26,35 +28,36 @@ public class ScoreApi {
 	@Inject
 	private Cli cli;
 
-	private static final short ITEM_NOT_FOUND = -100;
-	private static final short DB_RETRIEVE_RESULT_ERROR = -101;
-	private static final short DB_CONNECTION_ERROR = -102;
-	private static final short DUBLICATE_IN_DB_ERROR = -103;
-	private static final short REDIS_REJECTED_WRITE = -104;
+	private static final long ITEM_NOT_FOUND = -100;
+	private static final long DB_RETRIEVE_RESULT_ERROR = -101;
+	private static final long DB_CONNECTION_ERROR = -102;
+	private static final long DUBLICATE_IN_DB_ERROR = -103;
 
-	private Timer responseTimer;
-	private Timer cacheSearchTimer;
-	private Timer dbSearchTimer;
-	private Timer cacheWriteTimer;
+	private final Timer responseTimer;
+	private final Timer cacheSearchTimer;
+	private final Timer dbSearchTimer;
+	private final Timer cacheWriteTimer;
 
-	private Counter requestCounter;
-	private Counter cacheHitCounter;
-	private Counter cacheMissCounter;
-	private Counter cacheWritesCounter;
+	private final Counter requestCounter;
+	private final Counter cacheHitCounter;
+	private final Counter cacheMissCounter;
+	private final Counter cacheWritesCounter;
+	private final Counter cacheWriteFailesCounter;
 
 	@Inject
 	private DataSourceFactory dataSourceFactory;
 
 	@Inject
 	public ScoreApi(MetricRegistry metrics) {
-		this.responseTimer = metrics.timer(MetricRegistry.name(ScoreApi.class, "response-timer"));
-		this.cacheSearchTimer = metrics.timer(MetricRegistry.name(ScoreApi.class, "cache-search-timer"));
-		this.cacheWriteTimer = metrics.timer(MetricRegistry.name(ScoreApi.class, "cache-write-timer"));
-		this.dbSearchTimer = metrics.timer(MetricRegistry.name(ScoreApi.class, "db-search-timer"));
-		this.requestCounter = metrics.counter(MetricRegistry.name(ScoreApi.class, "request-counter"));
-		this.cacheHitCounter = metrics.counter(MetricRegistry.name(ScoreApi.class, "cache-hit-counter"));
-		this.cacheMissCounter = metrics.counter(MetricRegistry.name(ScoreApi.class, "cache-miss-counter"));
-		this.cacheWritesCounter = metrics.counter(MetricRegistry.name(ScoreApi.class, "cache-write-counter"));
+		this.responseTimer = metrics.timer("response-timer");
+		this.cacheSearchTimer = metrics.timer("cache-search-timer");
+		this.cacheWriteTimer = metrics.timer("cache-write-timer");
+		this.dbSearchTimer = metrics.timer("db-search-timer");
+		this.requestCounter = metrics.counter("request-counter");
+		this.cacheHitCounter = metrics.counter("cache-hit-counter");
+		this.cacheMissCounter = metrics.counter("cache-miss-counter");
+		this.cacheWritesCounter = metrics.counter("cache-write-counter");
+		this.cacheWriteFailesCounter = metrics.counter("cache-write-failes-counter");
 	}
 
 	@GET
@@ -65,70 +68,44 @@ public class ScoreApi {
 		return "{\"score\":" + getScoreByID(id) + "}";
 	}
 
-	private short getScoreByID(String id) {
+	private long _getScoreByID(Jedis jedis, String id){
+		long score = getScoreFromCache(jedis, id);
+		if (score == ITEM_NOT_FOUND) {
+			score = getScoreFromDB(id);
+			if (score != ITEM_NOT_FOUND) {
+				if (!putScoreToCache(jedis, id, score)) {
+					cacheWriteFailesCounter.inc();
+					/* 
+						Re-read value if we failed to write (potentially we can dive deep into recursion, but this case 
+						must be really hard to reproduce (we need to hit re-read exactly at expiry, which is not 
+						realistic)
+					*/
+//					System.out.println("RE-READ"); // good for illustratoin in terminal
+					return _getScoreByID(jedis, id);
+				}
+			}
+		}
+		return score;
+	}
+	
+	private long getScoreByID(String id) {
 		String singularityOption = cli.optionString("single-jedi");
 		boolean singleJedi = false;
 		if (singularityOption != null) {
 			singleJedi = singularityOption.equals("true");
 		}
-		if (JedisCache.getInstance() == null) {
-			String strategyOption = cli.optionString("jedi-strategy");
-			JedisCache.ImplementationVariant strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
-			switch (strategyOption) {
-				case "blind" : {
-					strategy = JedisCache.ImplementationVariant.BLIND_WRITE;
-					break;
-				}
-				case "dummy" : {
-					strategy = JedisCache.ImplementationVariant.DUMMY_WATCH_AND_WRITE;
-					break;
-				}
-				case "wtw" : {
-					strategy = JedisCache.ImplementationVariant.WATCH_TRANSACTION_WRITE;
-					break;
-				}
-				case "cas" : {
-					strategy = JedisCache.ImplementationVariant.CHECK_AND_SET;
-					break;
-				}
-				case "pessimistic" : {
-					strategy = JedisCache.ImplementationVariant.PESSIMISTIC_LOCK;
-					break;
-				}
-			}
-//			JedisCache.init("localhost", 16379, 200, null, true, strategy);
-			JedisCache.init("cache", 6379, 200, null, true, strategy);
+		JedisCache cache = CacheHelper.getInstance();
+		if (cache == null) {
+			cache = CacheHelper.init(cli.optionString("jedi-strategy"));
 		}
-		
 		Timer.Context context = this.responseTimer.time();
 		try {
 			if (singleJedi) {
-				JedisCache cache = JedisCache.getInstance();
 				try (Jedis jedis = cache.allocJedis()) {
-					short score = getScoreFromCache(cache, jedis, id);
-					if (score == ITEM_NOT_FOUND) {
-						score = getScoreFromDB(id);
-						if (score != ITEM_NOT_FOUND) {
-							boolean valueWasSet = putScoreToCache(cache, jedis, id, score);
-							if (!valueWasSet) {
-								return REDIS_REJECTED_WRITE;
-							}
-						}
-					}
-					return score;
+					return _getScoreByID(jedis, id);
 				}
 			} else {
-				short score = getScoreFromCache(null, null, id);
-				if (score == ITEM_NOT_FOUND) {
-					score = getScoreFromDB(id);
-					if (score != ITEM_NOT_FOUND) {
-						boolean valueWasSet = putScoreToCache(null, null, id, score);
-						if (!valueWasSet) {
-							return REDIS_REJECTED_WRITE;
-						}
-					}
-				}
-				return score;
+				return _getScoreByID(null, id);
 			}
 		} finally {
 			context.stop();
@@ -137,28 +114,28 @@ public class ScoreApi {
 
 	private static final String GET_SCORES_STATEMENT = "SELECT score FROM scores WHERE id = ?";
 
-	private boolean putScoreToCache(JedisCache cache, Jedis jedis, String id, Short score) {
+	private boolean putScoreToCache(Jedis jedis, String id, Long score) {
 		Timer.Context context = this.cacheWriteTimer.time();
 		try {
 			this.cacheWritesCounter.inc();
 			if (jedis == null) {
-				return JedisCache.getInstance().setExpirableShort(id, score);
+				return CacheHelper.getInstance().setExpirableLong(id, score);
 			} else {
-				return cache.setExpirableShort(jedis, id, score);
+				return CacheHelper.getInstance().setExpirableLong(jedis, id, score);
 			}
 		} finally {
 			context.stop();
 		}
 	}
 
-	private short getScoreFromCache(JedisCache cache, Jedis jedis, String id) {
+	private long getScoreFromCache(Jedis jedis, String id) {
 		Timer.Context context = this.cacheSearchTimer.time();
 		try {
-			Short score;
+			Long score;
 			if (jedis == null) {
-				score = JedisCache.getInstance().getShort(id);
+				score = CacheHelper.getInstance().getLong(id);
 			} else {
-				score = cache.getShort(jedis, id);
+				score = CacheHelper.getInstance().getLong(jedis, id);
 			}
 			if (score == null) {
 				this.cacheMissCounter.inc();
@@ -171,7 +148,7 @@ public class ScoreApi {
 		}
 	}
 
-	private short getScoreFromDB(String id) {
+	private long getScoreFromDB(String id) {
 		Timer.Context context = this.dbSearchTimer.time();
 		try {
 			try (Connection connection = dataSourceFactory.forName("database").getConnection()) {
@@ -180,12 +157,12 @@ public class ScoreApi {
 				try {
 					ResultSet result = statement.executeQuery();
 					if (result != null) {
-						short gameScore = ITEM_NOT_FOUND;
+						long gameScore = ITEM_NOT_FOUND;
 						while (result.next()) {
 							if (gameScore != ITEM_NOT_FOUND) {
 								return DUBLICATE_IN_DB_ERROR;
 							} else {
-								gameScore = (short) result.getInt(1);
+								gameScore = result.getLong(1);
 							}
 						}
 						return gameScore;

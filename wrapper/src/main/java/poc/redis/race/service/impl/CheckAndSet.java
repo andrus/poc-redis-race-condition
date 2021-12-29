@@ -7,25 +7,18 @@ import redis.clients.jedis.Transaction;
 
 public class CheckAndSet extends JedisCache {
 
-	public CheckAndSet(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
-		super(host, port, ttl, loggerPrefix, enablePoolTests);
+	public CheckAndSet(String host, int port, int ttl, boolean enablePoolTests) {
+		super(host, port, ttl, enablePoolTests);
 	}
 
 	@Override
 	public String getValue(Jedis jedis, String key) {
 		jedis.watch(key);
-		String value = jedis.get(key);
-		if (value != null) {
-			return value;
-		}
-		return null;
+		return jedis.get(key);
 	}
 
 	@Override
-	public boolean setValue(Jedis jedis, String key, String value) {
-		if (value == null) {
-			value = "";
-		}
+	public boolean _setValue(Jedis jedis, String key, String value) {
 		Transaction transaction = jedis.multi();
 		transaction.set(key, value);
 		List<Object> exec = transaction.exec();
@@ -41,10 +34,7 @@ public class CheckAndSet extends JedisCache {
 	}
 
 	@Override
-	public boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL) {
-		if (value == null) {
-			value = "";
-		}
+	public boolean _setExpirableValue(Jedis jedis, String key, String value, int forcedTTL) {
 		Transaction transaction = jedis.multi();
 		transaction.set(key, value);
 		transaction.pexpire(key, forcedTTL);
@@ -53,7 +43,7 @@ public class CheckAndSet extends JedisCache {
 			return false;
 		}
 		for (Object o : exec) {
-			if (o == null || !o.toString().equals("OK")) {
+			if (o == null || (!o.toString().equals("OK") && !o.toString().equals("1"))) {
 				return false;
 			}
 		}

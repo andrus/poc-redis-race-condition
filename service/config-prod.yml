@@ -8,3 +8,9 @@ metrics:
   reporters:
     - type: slf4j
       period: 5s
+
+log:
+  level: info
+  loggers:
+    io.bootique.jetty.server.RequestLogger:
+      level: warn

@@ -23,7 +23,7 @@ public class Bootstrap extends BaseModule {
 									.valueOptionalWithDefault("false")
 									.build();
 		
-		OptionMetadata cacheStrategy = OptionMetadata.builder("jedi-strategy", "Selects which cache to initialize: blind | dummy | wtw | cas | pessimistic ")
+		OptionMetadata cacheStrategy = OptionMetadata.builder("jedi-strategy", "Selects which cache to initialize: blind | dummy | wtw | cas | pessimistic | late-cas | late-pessimistic ")
 							.valueOptionalWithDefault("blind")
 							.build();
 

@@ -4,12 +4,21 @@ import java.net.http.HttpClient;
 
 public class CacheState {
 
+	public static boolean singleDegradeIsEnought = true;
+
+	public enum ValueState {
+		SHEDULED,
+		ACTUAL,
+		DEGRADED;
+	}
+
 	public short sheduled;
 	public short current;
 	public short previous;
 	private final String id;
 	private final HttpClient[] clients;
 	private ValueState state;
+	int degradeCount;
 
 	public CacheState(String id, short value, int parallelism) {
 		this.id = id;
@@ -32,8 +41,13 @@ public class CacheState {
 		switch (this.state) {
 			case ACTUAL:
 				if (previous == value) {
-					this.state = ValueState.DEGRADED;
-					System.err.println("Cache for '" + id + "' degraded old value returned: " + value + " (" + this.previous + " | " + this.current + " | " + this.sheduled + ")");
+					degradeCount++;
+					if (singleDegradeIsEnought || (!singleDegradeIsEnought && degradeCount >= PoC.CLIENT_PARALLELISM)) {
+						this.state = ValueState.DEGRADED;
+						System.err.println("Cache for '" + id + "' degraded old value returned: " + value + " (" + this.previous + " | " + this.current + " | " + this.sheduled + ")");
+					}
+				} else {
+					degradeCount = 0;
 				}
 				break;
 			case SHEDULED:
@@ -41,11 +55,24 @@ public class CacheState {
 					this.previous = this.current;
 					this.current = value;
 					this.sheduled = -1000;
+					degradeCount = 0;
 					this.state = ValueState.ACTUAL;
 					System.out.println("Cache for '" + id + "' accepted new value: " + value);
 				}
 				break;
 			case DEGRADED:
+				if (current == value) {
+					degradeCount = 0;
+					this.state = ValueState.ACTUAL;
+					System.out.println("Cache for '" + id + "' accepted new value: " + value);
+				} else if (current == value) {
+					this.previous = this.current;
+					this.current = value;
+					this.sheduled = -1000;
+					degradeCount = 0;
+					this.state = ValueState.ACTUAL;
+					System.out.println("Cache for '" + id + "' accepted new value: " + value);
+				}
 				break;
 		}
 

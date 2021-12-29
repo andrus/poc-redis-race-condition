@@ -2,122 +2,147 @@ package poc.redis.race.service;
 
 import java.util.HashMap;
 import java.util.concurrent.Semaphore;
+import org.junit.AfterClass;
+
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import poc.redis.race.service.JedisCache.ImplementationVariant;
 import redis.clients.jedis.Jedis;
 
 public class RedisRaceTest {
 
-	HashMap<String, Integer> kindaDatabase;
-	String key = "key";
+	private static RedisContainer redisContainer;
+	private static JedisWrapper jedisWrapper;
+	
+	private HashMap<String, Integer> kindaDatabase;
+	private final String key = "key";
+	private final Logger refereeLogger = LoggerFactory.getLogger("🐶 [referee]️");
 
-	@Before
-	public void configSLF4J() {
+	@Rule 
+	public TestName name = new TestName();
+	
+	@BeforeClass
+	public static void setup() throws InterruptedException {
 		System.setProperty("org.slf4j.simpleLogger.logFile", "System.out");
+        redisContainer = new RedisContainer();
+		redisContainer.start();
+		jedisWrapper = new JedisWrapper(redisContainer);
+		Thread.sleep(100);
+    }
+	
+	@AfterClass
+	public static void tearDown() { 
+		jedisWrapper.shutdown();
+		redisContainer.stop();
+	}
+	
+	@Before
+	public void setupTest() {
+		System.out.println();
+		System.out.println(TestNameUtils.testName(name));
+		jedisWrapper.flushAll();
+		kindaDatabase = new HashMap<String, Integer>();
+		kindaDatabase.put("key", 0);
 	}
 
 	@Test
-	public void blindWriteTest() {
+	public void blindWriteTest() throws InterruptedException {
 		testCase(ImplementationVariant.BLIND_WRITE, false, false);
 	}
 
 	@Test
-	public void dummyWatchAndWrite() {
+	public void dummyWatchAndWrite() throws InterruptedException {
 		testCase(ImplementationVariant.DUMMY_WATCH_AND_WRITE, false, false);
 	}
 
 	@Test
-	public void watchTransactionWrite() {
+	public void watchTransactionWrite() throws InterruptedException {
 		testCase(ImplementationVariant.WATCH_TRANSACTION_WRITE, false, false);
 	}
 
 	@Test
-	public void checkAndSet() {
+	public void checkAndSet() throws InterruptedException {
 		testCase(ImplementationVariant.CHECK_AND_SET, true, true);
 	}
-	
+
 	@Test
-	public void pessimisticLock() {
+	public void pessimisticLock() throws InterruptedException {
 		testCase(ImplementationVariant.PESSIMISTIC_LOCK, true, true);
 	}
 
 	@Test
-	public void checkAndSetWithConnectionPerRequest() {
+	public void lateCheckAndSet() throws InterruptedException {
+		testCase(ImplementationVariant.LATE_CHECK_AND_SET, true, false);
+	}
+
+	@Test
+	public void latePessimisticLock() throws InterruptedException {
+		testCase(ImplementationVariant.LATE_PESSIMISTIC_LOCK, true, false);
+	}
+
+	@Test
+	public void checkAndSetWithConnectionPerRequest() throws InterruptedException {
 		testCase(ImplementationVariant.CHECK_AND_SET, false, false);
 	}
-	
+
 	@Test
-	public void pessimisticLockWithConnectionPerRequest() {
+	public void pessimisticLockWithConnectionPerRequest() throws InterruptedException {
 		testCase(ImplementationVariant.PESSIMISTIC_LOCK, false, false);
 	}
 
-
-	private void testCase(ImplementationVariant variant, boolean connectionPerClient, boolean noOverwrite) {
-		kindaDatabase = new HashMap<String, Integer>();
-		kindaDatabase.put("key", 0);
-		final RedisTestWrapper rtw = new RedisTestWrapper(variant);
-		rtw.wrap(() -> {
-			final org.slf4j.Logger log = LoggerFactory.getLogger("🐶 [referee]️");
+	private void testCase(ImplementationVariant variant, boolean connectionPerClient, boolean noOverwrite) throws InterruptedException {
+		jedisWrapper.setVariant(variant);
+		Thread A = new Thread(() -> {
 			try {
-				Thread A = new Thread(() -> {
-					try {
-						mimicService(rtw, true, connectionPerClient);
-					} catch (InterruptedException ex) {
-						Assert.fail("InterruptedException is no go for our purpose");
-					}
-				}, "srvc");
-				Thread B = new Thread(() -> {
-					try {
-						mimicService(rtw, false, connectionPerClient);
-					} catch (InterruptedException ex) {
-						Assert.fail("InterruptedException is no go for our purpose");
-					}
-				}, "srvc");
-				rtw.getCache("monitor");
-				A.start();
-				B.start();
-				log.info("Waiting for A to read old value...");
-				newValueCanBeWritten.acquire();
-				kindaDatabase.put(key, kindaDatabase.get(key) + 1);
-				log.info("Updated value in Database");
-				oldValueRead.release();
-
-				A.join();
-				B.join();
-				Thread.sleep(50);
-				Integer redisFinalValue = rtw.getCache("final-state-check").getInt(key);
-				Integer redisDbValue = kindaDatabase.get(key);
-				Assert.assertEquals(Integer.valueOf(1), redisDbValue);
-				log.info("Final value in Redis: " + redisFinalValue);
-				log.info("Final value in DB: " + redisDbValue);
-				if (noOverwrite) {
-					Assert.assertEquals(redisFinalValue, redisDbValue);
-				} else {
-					Assert.assertNotEquals(redisFinalValue, redisDbValue);
-				}
+				mimicService(jedisWrapper, true, connectionPerClient);
 			} catch (InterruptedException ex) {
-				Assert.fail("InterruptedException is no go in our case");
-			} catch (AssertionError ae) {
-				throw ae;
-			} catch (Exception e) {
-				throw e;
+				Assert.fail("InterruptedException is no go for our purpose");
 			}
+		}, "srvA");
+		Thread B = new Thread(() -> {
+			try {
+				mimicService(jedisWrapper, false, connectionPerClient);
+			} catch (InterruptedException ex) {
+				Assert.fail("InterruptedException is no go for our purpose");
+			}
+		}, "srvB");
+		A.start();
+		B.start();
+		refereeLogger.info("Waiting for A to read old value...");
+		newValueCanBeWritten.acquire();
+		kindaDatabase.put(key, kindaDatabase.get(key) + 1);
+		refereeLogger.info("Updated value in Database");
+		oldValueRead.release();
 
-		});
-		Assert.assertFalse(rtw.isRunning());
+		A.join();
+		B.join();
+		Thread.sleep(50);
+		Integer redisFinalValue = jedisWrapper.getCache().getInt(key);
+		Integer redisDbValue = kindaDatabase.get(key);
+		Assert.assertEquals(Integer.valueOf(1), redisDbValue);
+		refereeLogger.info("Final value in Redis: " + redisFinalValue);
+		refereeLogger.info("Final value in DB: " + redisDbValue);
+		if (noOverwrite) {
+			Assert.assertEquals(redisFinalValue, redisDbValue);
+		} else {
+			Assert.assertNotEquals(redisFinalValue, redisDbValue);
+		}
 	}
 
 	Semaphore oldValueRead = new Semaphore(0);
 	Semaphore newValueCanBeWritten = new Semaphore(0);
 	Semaphore newValueWritten = new Semaphore(0);
 
-	private void mimicService(RedisTestWrapper rtw, boolean saboteur, boolean useSingleConnection) throws InterruptedException {
+	private void mimicService(JedisWrapper rtw, boolean saboteur, boolean useSingleConnection) throws InterruptedException {
 
-		final Logger log = LoggerFactory.getLogger(saboteur ? "🐭" : "🐱" + " [service]️");
+		final Logger log = LoggerFactory.getLogger((saboteur ? "🐭" : "🐱") + " [service]️");
 		JedisCache cache = rtw.getCache();
 		log.info("START");
 		if (useSingleConnection) {

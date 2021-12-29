@@ -48,17 +48,16 @@ MySQL, Redis and Traefik have single official image available on DockerHub, so t
 
 Spent about an hour on Bootique module mechanics - maybe we just don't click with it. Will look at it again soon.
 
+Tried as hard as I could, but failed to fully reproduce degraded cache state under load - situation where just two callers ask Redis for write in specific order and delays is hard to achieve, possible though. Best achieved result is test-stand proof of failure and fix. And sparadical degradet results for one (couple) of clients, fixed with following overwrites (in case of blind write strategies) or with re-read (in case of check-and-set-based stratefies).
+
 ## Finding
 
 First of all current implementation of PoC does not help with checking right way to cook a Redis. It helped us to validate that race condition occures, also we've realised that it's not 'that' common and mostly can happen when load is high.
 
 Strangely we've seen that Redis can prioritise requests which ask value of key added first.Maybe that was a coicidence, but couple times we've seen such strange behaviour.
 
-## Next steps
+There may be interesting behaviour if one service WATCH some key and others write equal value for that key. Not sure, but it's interesting to check if it will fail transaction.
 
-As it've been denoted above current implementation doesn't help us to learn to cook, so we need:
+## Performance
 
-- recreate test stand which will steadily reproduce race condition
-- implement fix for race condition on a test stand
-- check obtained solutions on current implementation (production-like test)
-- write down recipe for well cooked Redis
+After testing blind write, check and set and pessimistic lock performance (see METRICS.md) it's can be said that adding optimistic locking into the mix adds about third of time (on average in this primitive case). Also it's can be seen that pessimistic lock behaves worse than check and set, due to hotspot on locking key - hoped that Redis will optimaize this key, but actually it is not acting in that way.

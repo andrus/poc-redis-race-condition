@@ -11,11 +11,12 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import poc.redis.race.test.CacheState.ValueState;
 
 public class PoC {
 
 	private static final int DEFAULT_TABLE_SIZE = 2;
-	private static final int CLIENT_PARALLELISM = 2;
+	public static final int CLIENT_PARALLELISM = 2;
 	private static final int UPDATE_EVERY_MSEC = 300;
 
 	private static final short MAX_SCORE = 20;

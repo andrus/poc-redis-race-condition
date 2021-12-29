@@ -1,40 +1,37 @@
 package poc.redis.race.service;
 
 import java.util.Set;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import poc.redis.race.service.impl.BlindWrite;
 import poc.redis.race.service.impl.CheckAndSet;
 import poc.redis.race.service.impl.DummyWatchAndWrite;
+import poc.redis.race.service.impl.LateCheckAndSet;
+import poc.redis.race.service.impl.LatePessimisticLock;
 import poc.redis.race.service.impl.PessimisticLock;
 import poc.redis.race.service.impl.WatchTransactionWrite;
-import redis.clients.jedis.Connection;
 import redis.clients.jedis.Jedis;
-import redis.clients.jedis.JedisMonitor;
 import redis.clients.jedis.JedisPool;
 import redis.clients.jedis.JedisPoolConfig;
-import redis.clients.jedis.exceptions.JedisConnectionException;
 
 public abstract class JedisCache {
+
+	public static final int DEFAULT_REDIS_TTL_MSEC = 300;
+	public static final String OK = "OK";
 
 	enum ImplementationVariant {
 		BLIND_WRITE,
 		DUMMY_WATCH_AND_WRITE,
 		WATCH_TRANSACTION_WRITE,
 		CHECK_AND_SET,
-		PESSIMISTIC_LOCK
+		PESSIMISTIC_LOCK,
+		LATE_CHECK_AND_SET,
+		LATE_PESSIMISTIC_LOCK
 	}
-
-	private static JedisCache instance;
-	public static final int DEFAULT_REDIS_TTL_MSEC = 300;
-	public static final String OK = "OK";
 
 	private final int ttl;
 	private JedisPool pool = null;
-	private Thread monitorThread = null;
-	private Jedis monitorJedis = null;
 
-	protected JedisCache(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests) {
+	protected JedisCache(String host, int port, int ttl, boolean enablePoolTests) {
 		JedisPoolConfig config = new JedisPoolConfig();
 		config.setMaxTotal(128);
 		config.setMaxIdle(128);
@@ -47,36 +44,6 @@ public abstract class JedisCache {
 			config.setNumTestsPerEvictionRun(3);
 		}
 		pool = new JedisPool(config, host, port);
-		if (loggerPrefix != null) {
-			final Logger monitorLogger = LoggerFactory.getLogger("🔮 [" + loggerPrefix + "]️");
-
-			monitorThread = new Thread(new Runnable() {
-				public void run() {
-					monitorJedis = allocJedis();
-					monitorJedis.monitor(new JedisMonitor() {
-
-						@Override
-						public void proceed(Connection client) {
-							this.client = client;
-							this.client.setTimeoutInfinite();
-							while (client.isConnected()) {
-								try {
-									String command = client.getBulkReply();
-									onCommand(command);
-								} catch (JedisConnectionException jce) {
-								}
-							}
-						}
-
-						@Override
-						public void onCommand(String command) {
-							monitorLogger.info(command);
-						}
-					});
-				}
-			}, "wtch");
-			monitorThread.start();
-		}
 		this.ttl = ttl;
 	}
 
@@ -85,43 +52,33 @@ public abstract class JedisCache {
 	}
 
 	public static JedisCache init(String host, int port, int ttl) {
-		return init(host, port, ttl, null, false, ImplementationVariant.BLIND_WRITE);
+		return init(host, port, ttl, false, ImplementationVariant.BLIND_WRITE);
 	}
 
-	public static JedisCache init(String host, int port, int ttl, String loggerPrefix, boolean enablePoolTests, ImplementationVariant variant) {
-		if (instance == null) {
-			switch (variant) {
-				case BLIND_WRITE: {
-					instance = new BlindWrite(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
-				case DUMMY_WATCH_AND_WRITE: {
-					instance = new DummyWatchAndWrite(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
-				case WATCH_TRANSACTION_WRITE: {
-					instance = new WatchTransactionWrite(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
-				case CHECK_AND_SET: {
-					instance = new CheckAndSet(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
-				case PESSIMISTIC_LOCK: {
-					instance = new PessimisticLock(host, port, ttl, loggerPrefix, enablePoolTests);
-					break;
-				}
+	public static JedisCache init(String host, int port, int ttl, boolean enablePoolTests, ImplementationVariant variant) {
+		switch (variant) {
+			case DUMMY_WATCH_AND_WRITE: {
+				return new DummyWatchAndWrite(host, port, ttl, enablePoolTests);
 			}
-			return instance;
-		} else {
-			instance.pool.close();
-			instance = null;
-			return init(host, port, ttl, loggerPrefix, enablePoolTests, variant);
+			case WATCH_TRANSACTION_WRITE: {
+				return new WatchTransactionWrite(host, port, ttl, enablePoolTests);
+			}
+			case CHECK_AND_SET: {
+				return new CheckAndSet(host, port, ttl, enablePoolTests);
+			}
+			case PESSIMISTIC_LOCK: {
+				return new PessimisticLock(host, port, ttl, enablePoolTests);
+			}
+			case LATE_CHECK_AND_SET: {
+				return new LateCheckAndSet(host, port, ttl, enablePoolTests);
+			}
+			case LATE_PESSIMISTIC_LOCK: {
+				return new LatePessimisticLock(host, port, ttl, enablePoolTests);
+			}
+			default: {
+				return new BlindWrite(host, port, ttl, enablePoolTests);
+			}
 		}
-	}
-
-	public static JedisCache getInstance() {
-		return instance;
 	}
 
 	public Set<String> keys() {
@@ -157,9 +114,24 @@ public abstract class JedisCache {
 
 	public abstract String getValue(Jedis jedis, String key);
 
-	public abstract boolean setValue(Jedis jedis, String key, String value);
+	public boolean setValue(Jedis jedis, String key, String value) {
+		if (value == null) {
+			value = "";
+		}
+		return _setValue(jedis, key, value);
+	}
+	
+	
+	public abstract boolean _setValue(Jedis jedis, String key, String value);
 
-	public abstract boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL);
+	public boolean setExpirableValue(Jedis jedis, String key, String value, int forcedTTL){
+		if (value == null) {
+			value = "";
+		}
+		return _setExpirableValue(jedis, key, value, forcedTTL);
+	}
+	
+	public abstract boolean _setExpirableValue(Jedis jedis, String key, String value, int forcedTTL);
 
 	public Short getShort(String key) {
 		String value = getValue(key);
@@ -264,9 +236,7 @@ public abstract class JedisCache {
 	}
 
 	public void shutdown() {
-		this.monitorThread.interrupt();
 		this.pool.close();
-		instance = null;
 	}
 
 	public static String wrapNull(Object source, String nullString) {
