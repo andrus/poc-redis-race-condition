@@ -58,3 +58,11 @@ But than end of life for cache value happens and now both threads will need to u
 |  8   | old |  —  |   new    |   old   | Redis → B          |
 
 And finaly - "The Kill Sequence" or "How to mess up your cache in 6 easy steps". Everything looks that same as in previous sequence, but here we have step 2 with new value coming to the database between A & B requests, so we have a split situation when two clients has different values and gona try to commit their version of actual to the Redis, and this is where situation becomes hairy. And that's the test sequence we've been looking for!
+
+## Results
+
+Implemented 7 strategies (4 of which are just for illustrative reason). Check and set & pessimistic locking strategies show stable behaviour and able to deal with race condition.
+
+WATCH command need to be issued as soon as possible to 'cover' time span of request-response routine. WATCH sets Redis connection flag, so following write must be performed on same connection - failure to do so will lead to race-condition. WATCH must be followed by transaction (MULTI), because it's only way to utilise check and set mechanics of Redis. Also it's important to rememeber that in case of intermediate write from other request prepared trasaction will fail to guarantee atomicity of operation.
+
+> _Transaction is not the best word though, because there is no way to guarantee full transaction execution and roll-back, but it's term used in Jedis documentation (also used in some Redis docs)._
